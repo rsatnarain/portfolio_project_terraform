@@ -12,6 +12,6 @@ output "bucket_website_endpoint" {
 }
 
 output "cloudfront_url" {
-  value = aws_cloudfront_distribution.website_distribution.domain_name
-  description = "The URL for the CloudFront distribution."
+  value       = aws_cloudfront_distribution.website_distribution.domain_name
+  description = "The public URL of the CloudFront distribution"
 }
