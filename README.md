@@ -1,7 +1,7 @@
 # Client Project Brief: Portfolio Website Deployment
 
 ## 📺 Project Walkthrough
-**Video Link:** [Project Configuration](https://link.com)
+**Video Link:** [Project Configuration](https://www.loom.com/share/25a8a8f0762542e78ede319665c256e4)
 
 ---
 
