@@ -6,12 +6,12 @@
 # -----------------------------------------------------------------------------------------------
 # Rob.           2026-04-27.    1.0.     Initial Create
 
-output "bucket_website_endpoint" {
-  value = aws_s3_bucket.website_bucket.website_endpoint
-  description = "The endpoint URL for the S3 bucket hosting the website."
+output "cloudfront_domain_name" {
+  value       = aws_cloudfront_distribution.website_distribution.domain_name
+  description = "The URL to access the website via CloudFront"
 }
 
-output "cloudfront_url" {
-  value       = aws_cloudfront_distribution.website_distribution.domain_name
-  description = "The public URL of the CloudFront distribution"
+output "s3_bucket_name" {
+  value       = aws_s3_bucket.website_bucket.id
+  description = "Name of the S3 bucket"
 }

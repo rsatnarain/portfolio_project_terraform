@@ -4,9 +4,7 @@
 #. 
 # Updated By     Update Date   Version   Description
 # -----------------------------------------------------------------------------------------------
-# Rob.           2026-04-27.    1.0.     Initial Create
-# Rob.           2026-04-27.    1.1.     Added S3 bucket and CloudFront distribution resources for hosting the website. FIX: Use the regional domain name instead of website_endpoint for CloudFront origin configuration. Added origin access control for secure access to the S3 bucket. Updated outputs to reflect changes in the infrastructure setup.
-# Rob.           2026-04-27.    1.2.     Updated S3 bucket policy to allow access from CloudFront using the correct ARN and added conditions for secure access. Updated outputs to provide accurate descriptions and values based on the new infrastructure setup.
+# Rob.           2026-04-27.    1.0.     Initial Create. This file defines the AWS provider, a variable for the S3 bucket name, and resources for creating an S3 bucket, configuring it for website hosting, setting a bucket policy to allow access from CloudFront, and creating a CloudFront distribution to serve the website content. The configuration ensures that the S3 bucket is properly set up for static website hosting and that CloudFront can access the content securely.
 
 provider "aws" {
   region = "us-east-1"
@@ -17,8 +15,9 @@ variable "website_s3_bucket_rs" {
   description = "The name of the S3 bucket for the website"
 }
 
+# 1. S3 Bucket
 resource "aws_s3_bucket" "website_bucket" {
-    bucket = var.website_s3_bucket_rs
+  bucket = var.website_s3_bucket_rs
 
   tags = {
     Name        = "Portfolio Website"
@@ -26,18 +25,68 @@ resource "aws_s3_bucket" "website_bucket" {
   }
 }
 
-resource "aws_s3_bucket_website_configuration" "website_config" {
+# 2. Block all public access (Best Practice: Keep S3 private)
+resource "aws_s3_bucket_public_access_block" "website_bucket_privacy" {
   bucket = aws_s3_bucket.website_bucket.id
 
-  index_document {
-    suffix = "index.html"
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# 3. CloudFront Origin Access Control (The missing resource)
+resource "aws_cloudfront_origin_access_control" "default" {
+  name                              = "s3-portfolio-oac"
+  description                       = "OAC for Portfolio Website"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# 4. CloudFront Distribution
+resource "aws_cloudfront_distribution" "website_distribution" {
+  enabled             = true
+  default_root_object = "index.html"
+
+  origin {
+    domain_name              = aws_s3_bucket.website_bucket.bucket_regional_domain_name
+    origin_id                = "S3-Website"
+    origin_access_control_id = aws_cloudfront_origin_access_control.default.id
+    # Note: No custom_origin_config needed for S3 OAC
   }
 
-  error_document {
-    key = "index.html"
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-Website"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name        = "Portfolio Distribution"
+    Environment = "Production"
   }
 }
 
+# 5. Bucket Policy (Updated to allow CloudFront OAC)
 resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
   bucket = aws_s3_bucket.website_bucket.id
   policy = jsonencode({
@@ -59,57 +108,4 @@ resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
       }
     ]
   })
-}
-
-resource "aws_cloudfront_distribution" "website_distribution" {
-    origin {
-        # FIX: Use the regional domain name instead of website_endpoint
-        domain_name              = aws_s3_bucket.website_bucket.bucket_regional_domain_name
-        origin_id                = "S3-Website"
-        origin_access_control_id = aws_cloudfront_origin_access_control.default.id
-
-        custom_origin_config {
-            http_port = 80
-            https_port = 443
-            origin_protocol_policy = "http-only"
-            origin_ssl_protocols = ["TLSv1.2"]
-        }
-    }
-
-
-    enabled = true
-    default_root_object = "index.html"
-
-    default_cache_behavior {
-        allowed_methods  = ["GET", "HEAD"]
-        cached_methods   = ["GET", "HEAD"]
-        target_origin_id = "S3-Website"
-
-        forwarded_values {
-            query_string = false
-            cookies {
-                forward = "none"
-            }
-        }
-        
-        viewer_protocol_policy = "redirect-to-https"
-        min_ttl                = 0
-        default_ttl            = 3600
-        max_ttl                = 86400
-    }
-
-    restrictions {
-        geo_restriction {
-            restriction_type = "none"
-        }
-    }
-
-    viewer_certificate {
-        cloudfront_default_certificate = true
-    }
-
-    tags = {
-        Name        = "Portfolio CloudFront Distribution"
-        Environment = "Production"
-    }
 }
