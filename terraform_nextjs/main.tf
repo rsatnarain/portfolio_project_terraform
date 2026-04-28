@@ -6,6 +6,7 @@
 # -----------------------------------------------------------------------------------------------
 # Rob.           2026-04-27.    1.0.     Initial Create
 # Rob.           2026-04-27.    1.1.     Added S3 bucket and CloudFront distribution resources for hosting the website. FIX: Use the regional domain name instead of website_endpoint for CloudFront origin configuration. Added origin access control for secure access to the S3 bucket. Updated outputs to reflect changes in the infrastructure setup.
+# Rob.           2026-04-27.    1.2.     Updated S3 bucket policy to allow access from CloudFront using the correct ARN and added conditions for secure access. Updated outputs to provide accurate descriptions and values based on the new infrastructure setup.
 
 provider "aws" {
   region = "us-east-1"
@@ -37,21 +38,27 @@ resource "aws_s3_bucket_website_configuration" "website_config" {
   }
 }
 
-resource "aws_s3_bucket_policy" "website_bucket_policy" {
+resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
   bucket = aws_s3_bucket.website_bucket.id
-
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Principal = "*"
-        Action = "s3:GetObject"
+        Sid       = "AllowCloudFrontServicePrincipal"
+        Effect    = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
         Resource = "${aws_s3_bucket.website_bucket.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.website_distribution.arn
+          }
+        }
       }
     ]
   })
-  
 }
 
 resource "aws_cloudfront_distribution" "website_distribution" {
