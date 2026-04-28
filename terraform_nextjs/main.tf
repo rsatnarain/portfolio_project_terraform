@@ -10,19 +10,30 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_s3_bucket" "website_bucket" {
-  bucket = "portfolio-website-bucket-rs13"
+variable "website_s3_bucket_rs" {
+  type        = string
+  description = "The name of the S3 bucket for the website"
+}
 
-  website {
-    index_document = "index.html"
-    error_document = "index.html"
-  }
+resource "aws_s3_bucket" "website_bucket" {
+    bucket = var.website_s3_bucket_rs
 
   tags = {
     Name        = "Portfolio Website"
     Environment = "Production"
   }
-  
+}
+
+resource "aws_s3_bucket_website_configuration" "website_config" {
+  bucket = aws_s3_bucket.website_bucket.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html"
+  }
 }
 
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
@@ -44,7 +55,7 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
 
 resource "aws_cloudfront_distribution" "website_distribution" {
     origin {
-        domain_name = aws_s3_bucket.website.website_endpoint
+        domain_name = aws_s3_bucket.website_bucket.website_endpoint
         origin_id = "S3-Website"
 
         custom_origin_config {
