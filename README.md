@@ -1,7 +1,11 @@
 # Client Project Brief: Portfolio Website Deployment
 
 ## 📺 Project Walkthrough
+
+To provide a comprehensive overview of the project, I have created two detailed walkthrough videos. The first video covers the project configuration and deployment process for the Next.js application, while the second video focuses on the Terraform scripts used to manage the AWS infrastructure.
+
 **Video Link #1:** [Project Configuration - Next.js](https://www.loom.com/share/25a8a8f0762542e78ede319665c256e4)
+
 **Video Link #2:** [Project Configuration - Terraform](https://www.loom.com/share/66702ae923074b529204650ea497eeb6)
 
 
