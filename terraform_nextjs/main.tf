@@ -5,6 +5,9 @@
 # Updated By     Update Date   Version   Description
 # -----------------------------------------------------------------------------------------------
 # Rob.           2026-04-27.    1.0.     Initial Create. This file defines the AWS provider, a variable for the S3 bucket name, and resources for creating an S3 bucket, configuring it for website hosting, setting a bucket policy to allow access from CloudFront, and creating a CloudFront distribution to serve the website content. The configuration ensures that the S3 bucket is properly set up for static website hosting and that CloudFront can access the content securely.
+# Rob.           2026-04-27    1.1.     Added CloudFront Origin Access Control (OAC) resource and updated the S3 bucket policy to allow access from CloudFront using OAC, enhancing security by ensuring that only CloudFront can access the S3 bucket content.
+# Rob.           2026-04-27    1.2.     Add a Custom Error Response to your aws_cloudfront_distribution resource in main.tf. This tells CloudFront to send all 404s back to index.html so Next.js can handle the routing.     
+# Rob.           2026-04-29    1.3.     Fix: Update S3 bucket policy to restrict access to specific CloudFront distribution and add custom error responses for 404 and 403 errors to ensure proper handling of client-side routing in Next.js. This ensures that only the designated CloudFront distribution can access the S3 bucket content, enhancing security while maintaining functionality for the Next.js application.
 
 provider "aws" {
   region = "us-east-1"
@@ -49,12 +52,24 @@ resource "aws_cloudfront_distribution" "website_distribution" {
   enabled             = true
   default_root_object = "index.html"
 
-  origin {
-    domain_name              = aws_s3_bucket.website_bucket.bucket_regional_domain_name
-    origin_id                = "S3-Website"
-    origin_access_control_id = aws_cloudfront_origin_access_control.default.id
-    # Note: No custom_origin_config needed for S3 OAC
-  }
+    origin {
+        domain_name              = aws_s3_bucket.website_bucket.bucket_regional_domain_name
+        origin_id                = "S3-Website"
+        origin_access_control_id = aws_cloudfront_origin_access_control.default.id
+        # Note: No custom_origin_config needed for S3 OAC
+    }
+
+    custom_error_response {
+        error_code            = 404
+        response_code         = 200
+        response_page_path    = "/index.html"
+    }
+
+    custom_error_response {
+        error_code            = 403
+        response_code         = 200
+        response_page_path    = "/index.html"
+    }
 
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD"]
