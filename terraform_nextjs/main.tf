@@ -8,6 +8,7 @@
 # Rob.           2026-04-27    1.1.     Added CloudFront Origin Access Control (OAC) resource and updated the S3 bucket policy to allow access from CloudFront using OAC, enhancing security by ensuring that only CloudFront can access the S3 bucket content.
 # Rob.           2026-04-27    1.2.     Add a Custom Error Response to your aws_cloudfront_distribution resource in main.tf. This tells CloudFront to send all 404s back to index.html so Next.js can handle the routing.     
 # Rob.           2026-04-29    1.3.     Fix: Update S3 bucket policy to restrict access to specific CloudFront distribution and add custom error responses for 404 and 403 errors to ensure proper handling of client-side routing in Next.js. This ensures that only the designated CloudFront distribution can access the S3 bucket content, enhancing security while maintaining functionality for the Next.js application.
+# Rob            2026-04-29    1.4.     Add OIDC provider and IAM role for GitHub Actions to enable secure CI/CD deployment of the Next.js application to S3 and CloudFront. This allows for automated deployments from GitHub while ensuring that only authorized actions can modify the AWS infrastructure, enhancing security and streamlining the deployment process. The IAM role is configured with a trust policy that restricts access to a specific GitHub repository, and permissions are granted for S3 object management and CloudFront cache invalidation, facilitating efficient updates to the website content.
 
 provider "aws" {
   region = "us-east-1"
@@ -125,50 +126,75 @@ resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
   })
 }
 
-# ============================================================================================
-# IAM Role and Policy for CloudFront Cache Invalidation - Added for CI/CD Pipeline Integration
-# ============================================================================================
+# ==============================================================================
+# OIDC Provider & CI/CD Role for GitHub Actions
+# ==============================================================================
 
-resource "aws_iam_role" "cloudfront_invalidator_role" {
-  name = "CloudFrontInvalidatorRole"
+# 1. Create the GitHub OIDC Provider in AWS
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  # Standard GitHub OIDC thumbprints
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c58a3a8518e8759bf075b76b750d4f2df264fcd"]
+}
 
-  # The Trust Relationship (AssumeRolePolicyDocument)
+# 2. IAM Role for GitHub Actions
+resource "aws_iam_role" "github_actions_role" {
+  name = "GitHubActionsDeployRole"
+
+  # Trust Policy: Only allows your specific GitHub repo to assume this role
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Principal = {
-          # Update this if you are using GitHub Actions (OIDC) instead of Lambda
-          Service = "lambda.amazonaws.com"
+          Federated = aws_iam_openid_connect_provider.github.arn
         }
-        Action = "sts:AssumeRole"
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            # UPDATE THIS LINE: Scope to your exact repository and branch
+            "token.actions.githubusercontent.com:sub" = "repo:rsatnarain/portfolio_project_terraform:*"
+          }
+        }
       }
     ]
   })
-
-  tags = {
-    Name        = "CloudFront Invalidator Role"
-    Environment = "Production"
-  }
 }
 
-resource "aws_iam_role_policy" "cloudfront_invalidation_policy" {
-  name = "CloudFrontInvalidationPolicy"
-  role = aws_iam_role.cloudfront_invalidator_role.id
+# 3. IAM Policy: Grants permissions to Sync S3 and Invalidate CloudFront
+resource "aws_iam_role_policy" "github_actions_policy" {
+  name = "GitHubActionsDeployPolicy"
+  role = aws_iam_role.github_actions_role.id
 
-  # The actual permissions granted to the role
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "S3DeployPermissions"
         Effect = "Allow"
         Action = [
-          "cloudfront:CreateInvalidation",
-          "cloudfront:GetInvalidation",
-          "cloudfront:ListInvalidations"
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
         ]
-        # Dynamically references the CloudFront distribution from this exact workspace
+        # Dynamically targets the bucket created in this workspace
+        Resource = [
+          aws_s3_bucket.website_bucket.arn,
+          "${aws_s3_bucket.website_bucket.arn}/*"
+        ]
+      },
+      {
+        Sid    = "CloudFrontInvalidatePermissions"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation"
+        ]
+        # Dynamically targets the distribution created in this workspace
         Resource = aws_cloudfront_distribution.website_distribution.arn
       }
     ]

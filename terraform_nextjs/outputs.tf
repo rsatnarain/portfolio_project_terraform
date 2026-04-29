@@ -21,3 +21,8 @@ output "cloudfront_distribution_id" {
   value       = aws_cloudfront_distribution.website_distribution.id
   description = "The ID of the CloudFront distribution for cache invalidation"
 }
+
+output "cloudfront_invalidator_role_arn" {
+  value       = aws_iam_role.cloudfront_invalidator_role.arn
+  description = "ARN of the created IAM Role for CloudFront invalidation"
+}
