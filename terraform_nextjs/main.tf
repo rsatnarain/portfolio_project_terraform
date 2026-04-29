@@ -124,3 +124,53 @@ resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
     ]
   })
 }
+
+# ============================================================================================
+# IAM Role and Policy for CloudFront Cache Invalidation - Added for CI/CD Pipeline Integration
+# ============================================================================================
+
+resource "aws_iam_role" "cloudfront_invalidator_role" {
+  name = "CloudFrontInvalidatorRole"
+
+  # The Trust Relationship (AssumeRolePolicyDocument)
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          # Update this if you are using GitHub Actions (OIDC) instead of Lambda
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "CloudFront Invalidator Role"
+    Environment = "Production"
+  }
+}
+
+resource "aws_iam_role_policy" "cloudfront_invalidation_policy" {
+  name = "CloudFrontInvalidationPolicy"
+  role = aws_iam_role.cloudfront_invalidator_role.id
+
+  # The actual permissions granted to the role
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetInvalidation",
+          "cloudfront:ListInvalidations"
+        ]
+        # Dynamically references the CloudFront distribution from this exact workspace
+        Resource = aws_cloudfront_distribution.website_distribution.arn
+      }
+    ]
+  })
+}
