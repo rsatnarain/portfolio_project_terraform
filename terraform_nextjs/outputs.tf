@@ -22,7 +22,7 @@ output "cloudfront_distribution_id" {
   description = "The ID of the CloudFront distribution for cache invalidation"
 }
 
-output "cloudfront_invalidator_role_arn" {
-  value       = aws_iam_role.cloudfront_invalidator_role.arn
-  description = "ARN of the created IAM Role for CloudFront invalidation"
+output "github_actions_role_arn" {
+  value       = aws_iam_role.github_actions_role.arn
+  description = "The ARN of the IAM Role for GitHub Actions to assume via OIDC"
 }
