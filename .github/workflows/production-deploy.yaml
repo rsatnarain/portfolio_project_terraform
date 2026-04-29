@@ -2,6 +2,10 @@
 # Creation Date: 2026-04-29
 # Description: CI/CD Pipeline for Next.js Static Export to AWS S3 & CloudFront
 # Trigger: PRs to main (Build only) and Pushes to main (Build & Deploy)
+# Updated By     Update Date   Version   Description
+# -----------------------------------------------------------------------------------------------
+# Rob            2026-04-29.    1.0.     Initial Create --- IGNORE ---  
+# Rob            2026-04-29.    1.1.     Fix: Set default working directory for all 'run' commands to './nextjs-blog' to ensure correct context for build and deployment steps, and explicitly specify the cache dependency path for Node.js dependencies to improve caching efficiency in GitHub Actions. This enhancement ensures that all commands are executed in the correct directory where the Next.js application resides, preventing potential issues with file paths during the build and deployment process. Additionally, by defining the cache dependency path, we can optimize caching of Node.js modules, leading to faster build times and more efficient use of resources in the CI/CD pipeline.
 
 name: Production Deployment
 
@@ -9,7 +13,6 @@ on:
   push:
     branches:
       - main
-  # Trigger the workflow when a PR is opened against the main branch
   pull_request:
     branches:
       - main
@@ -24,6 +27,11 @@ jobs:
     name: Build & Deploy to AWS
     runs-on: ubuntu-latest
 
+    # FIX 1: Set the default working directory for all 'run' commands in this job
+    defaults:
+      run:
+        working-directory: ./nextjs-blog
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -33,11 +41,13 @@ jobs:
         with:
           node-version: '20' 
           cache: 'npm'
+          # FIX 2: Explicitly tell the action where the lock file is for caching
+          cache-dependency-path: './nextjs-blog/package-lock.json'
 
+      # Because of the default working-directory, this automatically runs in ./nextjs-blog
       - name: Install Dependencies
         run: npm ci
 
-      # This runs on BOTH PRs and Pushes to ensure your code isn't broken
       - name: Build Next.js Site
         run: npm run build
 
@@ -52,6 +62,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # The './out' path works perfectly here because we are already inside ./nextjs-blog
       - name: Deploy to S3
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: aws s3 sync ./out s3://${{ secrets.AWS_S3_BUCKET_NAME }} --delete
