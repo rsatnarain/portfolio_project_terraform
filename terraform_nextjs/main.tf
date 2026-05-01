@@ -11,6 +11,7 @@
 # Rob            2026-04-29    1.4.     Add OIDC provider and IAM role for GitHub Actions to enable secure CI/CD deployment of the Next.js application to S3 and CloudFront. This allows for automated deployments from GitHub while ensuring that only authorized actions can modify the AWS infrastructure, enhancing security and streamlining the deployment process. The IAM role is configured with a trust policy that restricts access to a specific GitHub repository, and permissions are granted for S3 object management and CloudFront cache invalidation, facilitating efficient updates to the website content.
 # Rob            2026-05-01    1.5.     Update: Added ownership controls to the S3 bucket to enforce bucket owner control and disable ACLs, following AWS best practices for S3 security. This change ensures that the bucket is fully controlled by the bucket owner and prevents any unintended access through ACLs, enhancing the security posture of the S3 bucket hosting the Next.js application. By enforcing bucket owner control, we ensure that all access permissions are managed through bucket policies, which is a more secure and manageable approach for controlling access to S3 resources. 
 # Rob            2026-05-01    1.6.     Update: Created repo variable and updated the tfvars file to include the GitHub repository name. This allows for dynamic configuration of the OIDC trust policy for GitHub Actions, ensuring that only the specified repository can assume the IAM role for deployments. By using a variable for the repository name, we can easily manage and update the trust relationship without modifying the Terraform code directly, enhancing maintainability and security of the deployment process. This change is crucial for ensuring that only authorized repositories can trigger deployments to the AWS infrastructure, reducing the risk of unauthorized access and potential security breaches.
+# Rob            2026-05-01    1.7.     Update: Fix: Enable IPv6 for CloudFront distribution and add caching TTL settings for improved performance. Enabling IPv6 allows the CloudFront distribution to serve content to clients using both IPv4 and IPv6, ensuring broader accessibility and future-proofing the distribution. Additionally, configuring caching TTL settings (min_ttl, default_ttl, max_ttl) helps optimize content delivery by controlling how long objects are cached at CloudFront edge locations, improving performance for end-users while ensuring that updates to the website are reflected in a timely manner. This update enhances the overall user experience by reducing latency and ensuring that content is delivered efficiently across different network protocols.
 # ================================================================================================
 
 provider "aws" {
@@ -74,7 +75,8 @@ resource "aws_cloudfront_origin_access_control" "default" {
 resource "aws_cloudfront_distribution" "website_distribution" {
   enabled             = true
   default_root_object = "index.html"
-
+  is_ipv6_enabled = true
+  comment = "Next.js Portfolio Website Distribution"
     origin {
         domain_name              = aws_s3_bucket.website_bucket.bucket_regional_domain_name
         origin_id                = "S3-Website"
@@ -95,10 +97,13 @@ resource "aws_cloudfront_distribution" "website_distribution" {
     }
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "S3-Website"
     viewer_protocol_policy = "redirect-to-https"
+    min_ttl = 0
+    default_ttl = 3600
+    max_ttl = 86400
 
     forwarded_values {
       query_string = false
