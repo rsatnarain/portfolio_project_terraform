@@ -9,6 +9,7 @@
 # Rob.           2026-04-27    1.2.     Add a Custom Error Response to your aws_cloudfront_distribution resource in main.tf. This tells CloudFront to send all 404s back to index.html so Next.js can handle the routing.     
 # Rob.           2026-04-29    1.3.     Fix: Update S3 bucket policy to restrict access to specific CloudFront distribution and add custom error responses for 404 and 403 errors to ensure proper handling of client-side routing in Next.js. This ensures that only the designated CloudFront distribution can access the S3 bucket content, enhancing security while maintaining functionality for the Next.js application.
 # Rob            2026-04-29    1.4.     Add OIDC provider and IAM role for GitHub Actions to enable secure CI/CD deployment of the Next.js application to S3 and CloudFront. This allows for automated deployments from GitHub while ensuring that only authorized actions can modify the AWS infrastructure, enhancing security and streamlining the deployment process. The IAM role is configured with a trust policy that restricts access to a specific GitHub repository, and permissions are granted for S3 object management and CloudFront cache invalidation, facilitating efficient updates to the website content.
+# Rob            2026-05-01    1.5.     Update: Added ownership controls to the S3 bucket to enforce bucket owner control and disable ACLs, following AWS best practices for S3 security. This change ensures that the bucket is fully controlled by the bucket owner and prevents any unintended access through ACLs, enhancing the security posture of the S3 bucket hosting the Next.js application. By enforcing bucket owner control, we ensure that all access permissions are managed through bucket policies, which is a more secure and manageable approach for controlling access to S3 resources.
 
 provider "aws" {
   region = "us-east-1"
@@ -26,6 +27,15 @@ resource "aws_s3_bucket" "website_bucket" {
   tags = {
     Name        = "Portfolio Website"
     Environment = "Production"
+  }
+}
+
+# Ownership Controls (Best Practice: Disable ACLs entirely)
+resource "aws_s3_bucket_ownership_controls" "website_bucket_ownership" {
+  bucket = aws_s3_bucket.website_bucket.id
+  rule {
+    # This setting disables ACLs and makes the bucket policy the only access control mechanism
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
